@@ -32,7 +32,7 @@ public class OnlineCoursesAnalyzer {
                         Double.parseDouble(info[12]), Double.parseDouble(info[13]), Double.parseDouble(info[14]),
                         Double.parseDouble(info[15]), Double.parseDouble(info[16]), Double.parseDouble(info[17]),
                         Double.parseDouble(info[18]), Double.parseDouble(info[19]), Double.parseDouble(info[20]),
-                        Double.parseDouble(info[20]), Double.parseDouble(info[21]));
+                        Double.parseDouble(info[21]), Double.parseDouble(info[22]));
                 courses.add(course);
             }
         } catch (IOException e) {
@@ -56,7 +56,7 @@ public class OnlineCoursesAnalyzer {
     }
 
     //2
-    //先分组 再排序 再求和
+
     public Map<String, Integer> getPtcpCountByInstAndSubject() {
         Stream<Course> stream = courses.stream();
         Map<String, Integer> list = stream.collect(Collectors.groupingBy(Course::getInsCourse,Collectors.summingInt(Course::getParticipants)));
@@ -71,8 +71,49 @@ public class OnlineCoursesAnalyzer {
     }
 
     //3
-    public Map<String, List<List<String>>> getCourseListOfInstructor() {
-        return null;
+    public Map<String, List<List<String>>> getCourseListOfInstructor()
+    {
+
+        Map<String, List<List<String>>> result= new LinkedHashMap<>();
+        for(Course c : courses) {
+            boolean flag =c.instructors.contains(",");
+            for (String ins : c.instructors.split(",")) {
+                if(result.containsKey(ins.trim())){
+                    List<List<String>> list=result.get(ins.trim());
+                    if(flag){
+                        list.get(1).add(c.title);
+                    }
+                    else{
+                        list.get(0).add(c.title);
+                    }
+                }
+                else{
+                    List<List<String>> list=new ArrayList<>();
+                    List<String> c1=new LinkedList<>();
+                    List<String> c2= new LinkedList<>();
+                    list.add(0,c1);
+                    list.add(1,c2);
+                    result.put(ins.trim(),list);
+                    if(flag){
+                        list.get(1).add(c.title);
+                    }
+                    else{
+                        list.get(0).add(c.title);
+                    }
+                }
+            }
+
+        }
+        Map<String, List<List<String>>> result0= new LinkedHashMap<>();
+        for (Map.Entry<String, List<List<String>>> item : result.entrySet()){
+            List<String> list0=item.getValue().get(0).stream().distinct().sorted().toList();
+            List<String> list1=item.getValue().get(1).stream().distinct().sorted().toList();
+            List<List<String>> list=new ArrayList<>();
+            list.add(0,list0);
+            list.add(1,list1);
+            result0.put(item.getKey(),list);
+        }
+        return result0;
     }
 
     //4
@@ -100,13 +141,54 @@ public class OnlineCoursesAnalyzer {
 
     //5
     public List<String> searchCourses(String courseSubject, double percentAudited, double totalCourseHours) {
-        return null;
+        Stream<Course> stream = courses.stream();
+        final String C=courseSubject.toLowerCase();
+        List<String> list =stream.filter(e->e.percentAudited>=percentAudited && e.totalHours<=totalCourseHours && e.subject.toLowerCase().contains(C)).map(Course::getTitle).distinct().sorted().toList();
+        return list;
     }
 
     //6
     public List<String> recommendCourses(int age, int gender, int isBachelorOrHigher) {
-        return null;
+        Stream<Course> stream = courses.stream();
+        Stream<Course> stream1 = courses.stream();
+        Map<String,Course> course =new TreeMap();
+        for(Course c : courses){
+            if (course.containsKey(c.number)){
+                if(c.launchDate.after(course.get(c.number).launchDate)){
+                    course.put(c.number,c);
+                }
+            }
+            else{
+                course.put(c.number,c);
+            }
+        }
+        Map<String,Double> map1=stream1.collect(Collectors.groupingBy(
+                                Course::getNumber,
+                                Collectors.averagingDouble(Course::getPercentDegree)));
+        Stream<Course> stream2 = courses.stream();
+        Map<String,Double> map2=stream2.collect(Collectors.groupingBy(
+                Course::getNumber,
+                Collectors.averagingDouble(Course::getPercentMale)));
+        Stream<Course> stream3 = courses.stream();
+        Map<String,Double> map3=stream3.collect(Collectors.groupingBy(
+                Course::getNumber,
+                Collectors.averagingDouble(Course::getMedianAge)));
+
+        List<String> list =stream.sorted(
+                (c1,c2)->{
+                    double s1=(age-map3.get(c1.number))*(age-map3.get(c1.number))+(gender*100-map2.get(c1.number))*(gender*100-map2.get(c1.number))+(isBachelorOrHigher*100-map1.get(c1.number))*(isBachelorOrHigher*100-map1.get(c1.number));
+                    double s2=(age-map3.get(c2.number))*(age-map3.get(c2.number))+(gender*100-map2.get(c2.number))*(gender*100-map2.get(c2.number))+(isBachelorOrHigher*100-map1.get(c2.number))*(isBachelorOrHigher*100-map1.get(c2.number));
+                    if((s1- s2) < 0){
+                        return -1;
+                    }else if ((s1 - s2) > 0){
+                        return 1;
+                    }else {
+                        return c1.getTitle().compareTo(c2.getTitle());
+                    }
+                }).map(e->course.get(e.number).title).distinct().limit(10).toList();
+        return list;
     }
+
 
 }
 
@@ -199,5 +281,26 @@ class Course {
 
     public String getTitle() {
         return title;
+    }
+
+
+    public String getNumber() {
+        return number;
+    }
+
+    public Date getLaunchDate() {
+        return launchDate;
+    }
+
+    public double getMedianAge() {
+        return medianAge;
+    }
+
+    public double getPercentMale(){
+        return percentMale;
+    }
+
+    public double getPercentDegree() {
+        return percentDegree;
     }
 }
