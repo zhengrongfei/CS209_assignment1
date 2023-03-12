@@ -3,6 +3,11 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This is just a demo for you, please run it on JDK17.
@@ -45,12 +50,24 @@ public class OnlineCoursesAnalyzer {
 
     //1
     public Map<String, Integer> getPtcpCountByInst() {
-        return null;
+        Stream<Course> stream = courses.stream();
+        Map<String, Integer> result = stream.sorted(Comparator.comparing(Course::getInstitution).reversed()).collect(Collectors.groupingBy(Course::getInstitution,Collectors.summingInt(Course::getParticipants)));
+        return result;
     }
 
     //2
+    //先分组 再排序 再求和
     public Map<String, Integer> getPtcpCountByInstAndSubject() {
-        return null;
+        Stream<Course> stream = courses.stream();
+        Map<String, Integer> list = stream.collect(Collectors.groupingBy(Course::getInsCourse,Collectors.summingInt(Course::getParticipants)));
+        Map<String, Integer> sorted = new LinkedHashMap<>();
+        list.entrySet().stream()
+                .sorted(
+                        Map.Entry.<String, Integer>comparingByValue()
+                                .reversed()
+                                .thenComparing(Map.Entry.comparingByKey()))
+                .forEachOrdered(e -> sorted.put(e.getKey(), e.getValue()));
+        return sorted;
     }
 
     //3
@@ -60,8 +77,26 @@ public class OnlineCoursesAnalyzer {
 
     //4
     public List<String> getCourses(int topK, String by) {
+        Stream<Course> stream = courses.stream();
+        switch (by) {
+            case "hours":
+                return stream.sorted(Comparator.comparing(Course::getTotalHours).reversed()).filter(distinctByKey1(Course::getTitle)).limit(topK).map(Course::getTitle).toList();
+
+            case "participants":
+                return  stream.sorted(Comparator.comparing(Course::getParticipants).reversed()).filter(distinctByKey1(Course::getTitle)).limit(topK).distinct().map(Course::getTitle).toList();
+            default:
+                break;
+        }
+
         return null;
     }
+    static <T> Predicate<T> distinctByKey1(Function<? super T, ?> keyExtractor) {
+        Map<Object, Boolean> seen = new ConcurrentHashMap<>();
+        return t -> seen.putIfAbsent(keyExtractor.apply(t), Boolean.TRUE) == null;
+    }
+
+
+
 
     //5
     public List<String> searchCourses(String courseSubject, double percentAudited, double totalCourseHours) {
@@ -138,5 +173,31 @@ class Course {
         this.percentMale = percentMale;
         this.percentFemale = percentFemale;
         this.percentDegree = percentDegree;
+    }
+
+    public String getInstitution() {
+        return institution;
+    }
+
+    public int getParticipants() {
+        return participants;
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+
+
+    public String getInsCourse(){
+        return institution.concat("-").concat(subject);
+    }
+
+    public  double getTotalHours() {
+        return totalHours;
+    }
+
+    public String getTitle() {
+        return title;
     }
 }
